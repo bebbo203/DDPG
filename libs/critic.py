@@ -11,6 +11,7 @@ class Critic(object):
         self.lr = lr
         self.tau = tau
 
+        self.opt = tf.optimizers.SGD(self.lr)
         self.initializer = tf.initializers.glorot_uniform()
 
         self.shapes = [
@@ -50,12 +51,12 @@ class Critic(object):
         return tf.Variable(self.initializer(shape), name=name, trainable=True, dtype=tf.float32)
         
     #Q: A,S -> q
-    def network(self, states, actions, axis=1):
+    def network(self, states, actions, axis):
         x = tf.concat([states, actions], axis=axis)
         d1 = self.dense(x, self.weights[0], self.weights[1])
         d1 = tf.nn.relu(d1)
         d2 = self.dense(d1, self.weights[2], self.weights[3])
-        d2 = tf.nn.sigmoid(d2)
+        d2 = tf.nn.relu(d2)
         return d2
 
     def target_network(self, states, actions):
@@ -63,7 +64,7 @@ class Critic(object):
         d1 = self.dense(x, self.target_weights[0], self.weights[1])
         d1 = tf.nn.relu(d1)
         d2 = self.dense(d1, self.target_weights[2], self.weights[3])
-        d2 = tf.nn.sigmoid(d2)
+        d2 = tf.nn.relu(d2)
         return d2
 
     
@@ -71,14 +72,10 @@ class Critic(object):
         return tf.losses.mean_squared_error(truth, predicted)
 
         
-    def train(self, states, actions, y):
-        with tf.GradientTape() as t:
-            current_loss = self.loss(y, self.predict(states, actions))
-        grads = t.gradient(current_loss, self.weights)
-        opt = tf.optimizers.Adam(self.lr)
-        #opt.apply_gradients(zip(grads, self.weights))
-        opt.minimize(self.loss, self.weights)
-        return current_loss
+    def train(self, states, actions, y, axis=1):
+        loss = lambda:tf.losses.mean_squared_error(y, self.predict(states, actions, axis=axis))
+        self.opt.minimize(loss, self.weights)
+        return tf.losses.mean_squared_error(y, self.predict(states, actions, axis=axis))
 
     # def train_batch(self, states, actions, y):
     #     total_loss = 0
@@ -93,13 +90,17 @@ class Critic(object):
     #     opt.minimize(self.loss(), self.weights)
     #     return total_loss
 
+    #CORREGGIIIIII
+    #deprecated
     def train_batch(self, states, actions, y):
-        opt = tf.optimizers.Adam(self.lr)
-        pred_values = self.predict(states, actions,axis = 2)
+        with tf.GradientTape() as t:
+            current_loss = self.loss(y, self.predict(states, actions))
+        grads = t.gradient(current_loss, self.weights)
 
-        loss = lambda:tf.losses.mean_squared_error(y, self.predict(states, actions, axis=2))
-        
-        opt.minimize(loss, var_list = self.weights)
+        loss = lambda:tf.losses.mean_squared_error(y, self.predict(states, actions, axis=1))
+
+        self.opt.minimize(loss, self.weights)
+        return current_loss 
     
     def predict(self, states, actions, axis=1):
         return self.network(states, actions, axis)

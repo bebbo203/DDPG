@@ -11,6 +11,7 @@ class Actor(object):
         self.lr = lr
         self.tau = tau
 
+        self.opt = tf.optimizers.SGD(self.lr)
         self.initializer = tf.initializers.glorot_uniform()
         
         self.shapes = [
@@ -46,14 +47,14 @@ class Actor(object):
         d1 = self.dense(states, self.weights[0], self.weights[1])
         d1 = tf.nn.relu(d1)
         d2 = self.dense(d1, self.weights[2], self.weights[3])
-        d2 = tf.nn.sigmoid(d2)
+        d2 = tf.nn.tanh(d2)
         return d2
 
     def target_network(self, states):
         dt1 = self.dense(states, self.target_weights[0], self.target_weights[1])
         dt1 = tf.nn.relu(dt1)
         dt2 = self.dense(dt1, self.target_weights[2], self.target_weights[3])
-        dt2 = tf.nn.sigmoid(dt2)
+        dt2 = tf.nn.tanh(dt2)
         return dt2
 
     
@@ -64,9 +65,8 @@ class Actor(object):
 
         actor_gradient = \
             t.gradient(actor_pred, self.weights, -critic_gradient)
-    
-        opt = tf.optimizers.Adam(self.lr)
-        opt.apply_gradients(zip(actor_gradient, self.weights))
+        
+        self.opt.apply_gradients(zip(actor_gradient, self.weights))
         #opt.minimize(actor_gradient, self.weights)
 
     #OH MOLTO PROBABILMENTE DEVI DIVIDERE EH
@@ -77,11 +77,9 @@ class Actor(object):
 
         #METTERE IL MENO UNO ALLA FINE
         actor_gradients = t.gradient(actor_pred, self.weights, -1*critic_gradients)
-
-    
             
-        opt = tf.optimizers.Adam(self.lr)
-        opt.apply_gradients(zip(actor_gradients, self.weights))
+        
+        self.opt.apply_gradients(zip(actor_gradients, self.weights))
         #opt.minimize(actor_gradients, var_list = self.weights)
 
             
