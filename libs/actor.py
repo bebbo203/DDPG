@@ -1,6 +1,11 @@
 import tensorflow as tf
 from functools import reduce
 
+
+W1 = 50
+W2 = 50
+
+
 class Actor(object):
 
     def __init__(self,state_size, action_size, action_bounds, batch_size, lr, tau):
@@ -11,13 +16,15 @@ class Actor(object):
         self.lr = lr
         self.tau = tau
 
-        self.opt = tf.optimizers.SGD(self.lr)
-        self.initializer = tf.initializers.glorot_uniform()
+        self.opt = tf.optimizers.Adam(self.lr)
+        self.initializer = tf.initializers.GlorotUniform()
         
         self.shapes = [
-            [self.state_size, 200],
-            [200],
-            [200, self.action_size],
+            [self.state_size, W1],
+            [W1],
+            [W1, W2],
+            [W2],
+            [W2, self.action_size],
             [self.action_size]
         ]
 
@@ -25,16 +32,14 @@ class Actor(object):
         self.target_weights = []
         
         for i in range(len(self.shapes)):
-            self.weights.append(self.init_weights(self.shapes[i],'AW{}'.format(i)))
-            self.target_weights.append(self.init_weights(self.shapes[i],'ATW{}'.format(i)))
+            if(i == len(self.shapes)-1 or i == len(self.shapes)-2):
+                new_weight = tf.Variable(tf.random.uniform(self.shapes[i],-3e-3,3e-3))
+            else:
+               new_weight = self.init_weights(self.shapes[i], 'CW{}'.format(i))
+            self.weights.append(new_weight)
+            self.target_weights.append(new_weight)
 
-        #Should be given by Critic
-        #self.critic_gradient = tf.placeholder(tf.float32, [None, self.action_size])
-        #self.total_gradient = tf.gradient(self.out, self.params, -self.critic_gradient)
-        #self.gradient = list(map(lambda x: tf.div(x, self.batch_size), total_gradient))
-
-        #self.optimize = tf.train.AdamOptimizer(self.lr).apply_gradients(zip(self.gradient, self.params))
-
+    
     def dense(self, inputs, weights, biases):
         x = tf.add(tf.matmul(inputs, weights), biases)
         return x
@@ -43,50 +48,33 @@ class Actor(object):
         return tf.Variable(self.initializer(shape), name=name, trainable=True, dtype=tf.float32)
 
     #mu: S -> A
-    def network(self, states):
-        d1 = self.dense(states, self.weights[0], self.weights[1])
+    def _network(self, states, weights):
+        states = states/tf.reduce_max(tf.abs(states))
+        d1 = self.dense(states, weights[0], weights[1])
         d1 = tf.nn.relu(d1)
-        d2 = self.dense(d1, self.weights[2], self.weights[3])
-        d2 = tf.nn.tanh(d2)
-        return d2
+        d2 = self.dense(d1, weights[2], weights[3])
+        d2 = tf.nn.relu(d2)
+        d3 = self.dense(d2, weights[4], weights[5])
+        d3 = tf.nn.tanh(d3)
+        return d3*self.action_bounds
+
+    def network(self, states):
+        return self._network(states, weights=self.weights)
 
     def target_network(self, states):
-        dt1 = self.dense(states, self.target_weights[0], self.target_weights[1])
-        dt1 = tf.nn.relu(dt1)
-        dt2 = self.dense(dt1, self.target_weights[2], self.target_weights[3])
-        dt2 = tf.nn.tanh(dt2)
-        return dt2
-
-    
-    
-    def train(self, states, critic_gradient):
-        with tf.GradientTape() as t:
-            actor_pred = self.network(states)
-
-        actor_gradient = \
-            t.gradient(actor_pred, self.weights, -critic_gradient)
+        return self._network(states, weights=self.target_weights)
         
-        self.opt.apply_gradients(zip(actor_gradient, self.weights))
-        #opt.minimize(actor_gradient, self.weights)
 
-    #OH MOLTO PROBABILMENTE DEVI DIVIDERE EH
-    def train_batch(self, states, critic_gradients):
-       
+    def train(self, states, critic_gradients):
         with tf.GradientTape() as t:
             actor_pred = self.network(states)
 
-        #METTERE IL MENO UNO ALLA FINE
-        actor_gradients = t.gradient(actor_pred, self.weights, -1*critic_gradients)
-            
+        actor_gradients = \
+            t.gradient(actor_pred, self.weights, -1*critic_gradients)
+        actor_gradients = list(map(lambda x: x/self.batch_size, actor_gradients))
         
         self.opt.apply_gradients(zip(actor_gradients, self.weights))
-        #opt.minimize(actor_gradients, var_list = self.weights)
-
-            
-        #optimize = tf.train.AdamOptimizer(self.lr).apply_gradients(zip(self.gradient, self.weights))
-
-    # def predict(self, states):
-    #     self.sess.run(self.out, feed_dict = {self.x: states})
+    
 
     def predict(self, states):
         return self.network(states)
@@ -98,18 +86,3 @@ class Actor(object):
         for i in range(len(self.target_weights)):
             self.target_weights[i] = tf.multiply(self.weights[i], self.tau) \
                 + tf.multiply(self.target_weights[i], 1. - self.tau)
-
-    
-        
-
-    # def predit_target(self, states):
-    #     self.sess.run(self.target_out, feed_dict = {self.target_x: states})
-
-    # def update_target_network(self):
-    #     for i in range(len(self.target_params)):
-    #         self.target_params[i].assign(tf.multiply(self.params[i], self.tau) \
-    #             + tf.multiply(self.target_params[i], 1. - self.tau))
-
-    # def num_vars(self):
-    #     return len(self.params) + len(self.target_params)
-    
