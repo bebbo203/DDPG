@@ -15,8 +15,8 @@ class Agent(object):
         self.state_size = state_size
         self.action_size = action_size
         
-        self.critic_lr = a_lr
-        self.actor_lr = c_lr
+        self.critic_lr = c_lr
+        self.actor_lr = a_lr
 
         self.actor_network = Actor(self.state_size, self.action_size, self.actor_lr).model
         self.actor_target_network = Actor(self.state_size, self.action_size, self.actor_lr).model
@@ -26,16 +26,14 @@ class Agent(object):
         self.actor_target_network.set_weights(self.actor_network.get_weights())
         self.critic_target_network.set_weights(self.critic_network.get_weights())
 
-        self.critic_optimizer = optimizers.Adam(self.critic_lr)
-        self.actor_optimizer = optimizers.Adam(self.actor_lr)
+        self.critic_optimizer = optimizers.Adam(learning_rate=self.critic_lr)
+        self.actor_optimizer = optimizers.Adam(learning_rate=self.actor_lr)
 
-        self.replay_buffer = ReplayBuffer(50000)
+        self.replay_buffer = ReplayBuffer(100000)
         self.MINIBATCH_SIZE = minibatch_size
         self.GAMMA = gamma
         self.TAU = tau
         self.noise = OUNoise(self.action_size)
-
-
 
 
     def step(self, s, a, r, s_1, t, train=True):
@@ -47,74 +45,34 @@ class Agent(object):
     def critic_train(self, minibatch):
         s_batch, a_batch, r_batch, s_1_batch, t_batch = minibatch
 
-        mu_prime = np.array(self.actor_target_network(s_1_batch))
+        mu_prime = self.actor_target_network(s_1_batch)
         q_prime = self.critic_target_network([s_1_batch, mu_prime])
-        ys = r_batch + self.GAMMA * (1 - t_batch) * q_prime
-   
-
+        
+        ys = np.reshape(r_batch, (self.MINIBATCH_SIZE, 1)) + self.GAMMA * (1 - np.reshape(t_batch, (self.MINIBATCH_SIZE, 1))) * q_prime
+        
         with tf.GradientTape() as tape:
             predicted_qs = self.critic_network([s_batch, a_batch])
-            loss = tf.keras.losses.MSE(ys, predicted_qs)
+            loss = (predicted_qs - ys)*(predicted_qs - ys) 
+            loss = functools.reduce(lambda a,b: a+b, loss)/self.MINIBATCH_SIZE
             dloss = tape.gradient(loss, self.critic_network.trainable_weights)
         
         self.critic_optimizer.apply_gradients(zip(dloss, self.critic_network.trainable_weights))
-
+       
 
     #Questa è presa da: https://www.overleaf.com/read/bdhhbwfpcpbr 
-    # def actor_train(self, minibatch):
-    #     s_batch, _, _, _, _= minibatch
-        
-    #     with tf.GradientTape() as tape:
-    #         mu = self.actor_network(s_batch)
-    #         q = self.critic_network([s_batch, mu])
-    #         grad = tape.gradient(q, self.actor_network.trainable_weights)
-        
-    #     self.actor_optimizer.apply_gradients(zip(-1*grad, self.actor_network.trainable_weights))
-    
-    
-    # def actor_train(self, minibatch):
-    #     s_batch, a_batch, r_batch, s_1_batch, t_batch = minibatch
-    #     with tf.GradientTape() as tape1:
-    #         with tf.GradientTape() as tape2:
-    #             mu = self.actor_network(s_batch)
-    #             q = self.critic_network([s_batch, mu])
-    #         q_grad = tape1.gradient(q, self.actor_network.trainable_weights)
-    #     params = tape2.gradient(mu, self.actor_network.trainable_weights)
-    #     self.actor_optimizer.apply_gradients(zip(params, self.actor_network.trainable_weights))
-
     def actor_train(self, minibatch):
-        s_batch, _, _, _, _ = minibatch
-        with tf.GradientTape() as tape1:
-            with tf.GradientTape() as tape2:
-                mu = self.actor_network(s_batch)
-                q = self.critic_network([s_batch, mu])
-            mu_grad = tape1.gradient(mu, self.actor_network.trainable_weights)
-        q_grad = tape2.gradient(q, self.actor_network.trainable_weights)
-
-        x = np.array(q_grad)*np.array(mu_grad)
-        x /= -len(minibatch)
+        s_batch, _, _, _, _= minibatch
         
+        with tf.GradientTape() as tape:
+            mu = self.actor_network(s_batch)
+            q = self.critic_network([s_batch, mu])
+            q = functools.reduce(lambda a,b: a+b, q)/self.MINIBATCH_SIZE
+            
         
-
-        self.actor_optimizer.apply_gradients(zip(x, self.actor_network.trainable_weights))
-
-
-    # def actor_train(self, minibatch):
-    #     s_batch, a_batch, r_batch, s_1_batch, t_batch = minibatch
-        
-    #     with tf.GradientTape(watch_accessed_variables=False) as tape1:
-    #         tape1.watch(self.actor_network.trainable_variables)
-    #         u_l = self.actor_network(s_batch)
-    #     with tf.GradientTape(watch_accessed_variables=False) as tape2:
-    #         tape2.watch(u_l)
-    #         q_l = self.critic_network([s_batch, u_l])
-    #     q_grads = tape2.gradient(q_l, u_l)
-    #     j = tape1.gradient(u_l, self.actor_network.trainable_variables, -q_grads)
-    #     for i in range(len(j)):
-    #         j[i] /= self.MINIBATCH_SIZE
-    #     self.actor_optimizer.apply_gradients(zip(j, self.actor_network.trainable_variables))
-
-
+        grad = tape.gradient(q, self.actor_network.trainable_weights)
+        negative_gradient = list(map(lambda x: tf.multiply(x, -1), grad))
+        self.actor_optimizer.apply_gradients(zip(negative_gradient, self.actor_network.trainable_weights))
+    
 
     def learn(self, minibatch):
         s, a, r, s_1, t = minibatch
@@ -123,8 +81,8 @@ class Agent(object):
         a = np.array(a).reshape(self.MINIBATCH_SIZE, self.action_size)
         a = tf.convert_to_tensor(a)
         r = np.array(r).reshape(self.MINIBATCH_SIZE, 1)
-
         s_1 = np.array(s_1).reshape(self.MINIBATCH_SIZE, self.state_size)
+        s_1 = tf.convert_to_tensor(s_1)
         t = np.array(t).reshape(self.MINIBATCH_SIZE, 1)
 
         self.critic_train(minibatch)
@@ -134,7 +92,7 @@ class Agent(object):
 
     def act(self, state, t=0):
         state = np.array(state).reshape(1, self.state_size)
-        action = self.actor_target_network(state)[0]
+        action = self.actor_network(state)[0]
         noisy = self.noise.get_action(action, t)
         return action, noisy
 

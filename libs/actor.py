@@ -19,13 +19,11 @@ class Actor(object):
         model.add(Dense(self.action_size, activation="tanh"))
 
 
-        # new_w = np.random.uniform(low=-3e-3, high=3e-3, size=(400,300))
-        # new_b = np.random.uniform(low=-3e-3, high=3e-3, size=(300))
-        # model.layers[-3].set_weights([new_w, new_b])
+        
 
-        # new_w = np.random.uniform(low=-3e-3, high=3e-3, size=(300,1))
-        # new_b = np.random.uniform(low=-3e-3, high=3e-3, size=(1))
-        # model.layers[-1].set_weights([new_w, new_b])
+        new_w = np.random.uniform(low=-3e-3, high=3e-3, size=(300,1))
+        new_b = np.random.uniform(low=-3e-3, high=3e-3, size=(1))
+        model.layers[-1].set_weights([new_w, new_b])
 
 
         return model
