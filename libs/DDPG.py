@@ -5,11 +5,21 @@ from plotter import *
 import signal
 from matplotlib import pyplot as plt
 from gym_cartpole_swingup.envs import CartPoleSwingUpEnv
+import os
 
 import sys
 
 
+actor_checkpoint_path = "training_actor/actor.ckpt"
+critic_checkpoint_path = "training_critic/critic.ckpt"
+actor_checkpoint_dir = os.path.dirname(actor_checkpoint_path)
+critic_checkpoint_dir = os.path.dirname(critic_checkpoint_path)
 
+
+
+def save_weights():
+    agent.actor_network.save_weights(actor_checkpoint_path.format(epoch=0))
+    agent.critic_network.save_weights(critic_checkpoint_path.format(epoch=0))
 
 
 def signal_handler(sig, frame):
@@ -17,17 +27,20 @@ def signal_handler(sig, frame):
     #plt.close()
     #plot_critic_decision(env, agent.actor_network, agent.critic_network)
     #plot_actor_decision(env, agent.actor_network)
-    
+   
+    #save_weights()
+
     plt.plot(range(len(mean_rewards)), mean_rewards)
     plt.plot(range(len(rewards)), rewards)
     plt.show()
+
     sys.exit(0)
 
 
 
 signal.signal(signal.SIGINT, signal_handler)
-#env = gym.make("CartPole-v0")
-env = CartPoleSwingUpEnv()
+env = gym.make("Pendulum-v0")
+#env = CartPoleSwingUpEnv()
 
 state_dim = env.observation_space.shape[0]
 action_dim = env.action_space.shape[0]
@@ -36,20 +49,22 @@ action_bound = env.action_space.high[0]
 #state_dim = 4
 #action_dim = 1
 
-#Agent(self, state_size, action_size, minibatch_size, a_lr, c_lr, gamma, tau)
-agent = Agent(state_dim, action_dim, 64, 0.0001, 0.001, 0.99,  0.05)
+#Agent(self, state_size, action_size, max_action,  minibatch_size, a_lr, c_lr, gamma, tau)
+agent = Agent(state_dim, action_dim, action_bound, 128, 0.001, 0.003, 0.99,  0.001)
 
 
 
-MAX_EPOCH_TIME = 5000
-MAX_EPOCHS = 500000
+MAX_EPOCH_TIME = 350
+MAX_EPOCHS = 100000
 TIME_TO_UPDATE = 100000
 TRAINING_INTERVAL = 1
 PLOT = False
-RENDER = False
-EPSILON_MIN = 0.001
+RENDER = True
+EPSILON_MIN = 0.05
 EPSILON_START = 1
 EPSILON_DECAY = 0.999
+
+
 
 
 
@@ -81,17 +96,21 @@ for i in range(MAX_EPOCHS):
         else:
             pure_action, noisy_action = agent.act(s, t_total)
             
-            if(np.random.normal() < epsilon):
+            if(epsilon > EPSILON_MIN and np.random.normal() < epsilon):
                 a = noisy_action
             else:
                 a = pure_action
-            #print(str(pure_action)+"  "+str(noisy_action))
+                #print(str(pure_action)+"  "+str(noisy_action))
         
             epsilon = epsilon if epsilon <= EPSILON_MIN else epsilon * EPSILON_DECAY
 
 
 
         s_1, r, t, _ = env.step(a)
+        if(t_ == MAX_EPOCH_TIME - 1):
+            t = 1
+            
+
         total_reward += r
         
         s_1 = np.array(s_1).reshape(state_dim)
