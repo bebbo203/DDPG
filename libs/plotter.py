@@ -98,6 +98,9 @@ def plot_actor_decision(env, actor_network=None):
     plt.pause(0.001)
 
 
+
+
+
 def plot_ddpg_decisions(ep: int,
                         actor_network: tf.keras.Model,
                         critic_network: tf.keras.Model,
@@ -139,7 +142,51 @@ def plot_ddpg_decisions(ep: int,
     # plt.draw()
     # plt.pause(0.001)
 
+
+
+def pole_actor_decision(actor, x, y):
+    z = []
+    for i in range(len(x)):
+        row = []
+        for j in range(len(y)):
+            state = np.array([x[i, j], y[i, j], 0, ]).reshape(1, 3)
+            action = float(actor(state)[0])
+            # print(f'state: {state}\t action: {action}')
+            row.append(action)
+        z.append(row)
+    z = np.array(z)
+    return z
+
+def heatmap(env, actor_network):
+   
+    x = np.linspace(env.observation_space.low[0],
+                    env.observation_space.high[0], 5)
+    y = np.linspace(env.observation_space.low[1],
+                    env.observation_space.high[1], 5)
+
+    xi = np.linspace(env.observation_space.low[0],
+                     env.observation_space.high[0], 30)
+    yi = np.linspace(env.observation_space.low[1],
+                     env.observation_space.high[1], 30)
+
     
+    xi, yi = np.meshgrid(xi, yi)
+    x, y = np.meshgrid(x, y)
+    actor_output = pole_actor_decision(actor_network, x, y)
+    zi = actor_output
+    rbf = Rbf(x, y, actor_output, function='gaussian')
+    zi = rbf(xi, yi)
+
+    fig = plt.figure("ACTOR")
+    ax = fig.add_subplot(111)
+    plt.imshow(zi, vmin=-1., vmax=1., origin='lower',
+               extent=[xi.min(), xi.max(), yi.min(), yi.max()])
+    plt.colorbar()
+    ax.set_aspect('auto')
+    plt.draw()
+    plt.pause(0.001)
+
     
+  
 
 
