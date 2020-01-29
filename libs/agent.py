@@ -32,13 +32,13 @@ class Agent(object):
 
         self.replay_buffer = ReplayBuffer(100000)
         self.MINIBATCH_SIZE = minibatch_size
-        self.GAMMA = gamma
+        self.GAMMA = tf.cast(gamma, dtype=tf.float64)
         self.TAU = tau
         self.noise = OUNoise(self.action_size)
 
         
 
-
+    
     def step(self, s, a, r, s_1, t, train=True):
         
         self.replay_buffer.add(s,a,r,s_1,t)
@@ -53,8 +53,8 @@ class Agent(object):
         mu_prime = self.actor_target_network(s_1_batch)
         q_prime = self.critic_target_network([s_1_batch, mu_prime])
 
-        ys = tf.cast(r_batch, dtype=tf.float64) + tf.cast(self.GAMMA,dtype=tf.float64) * tf.cast((1 - tf.cast(t_batch, dtype=tf.int64)), dtype=tf.float64) * q_prime
-        
+
+        ys = r_batch + self.GAMMA * (1 - t_batch) * q_prime
 
 
         with tf.GradientTape() as tape:    
@@ -62,19 +62,17 @@ class Agent(object):
             loss = (predicted_qs - ys)*(predicted_qs - ys) 
             loss = tf.reduce_mean(loss)
         
-        print(loss)
         dloss = tape.gradient(loss, self.critic_network.trainable_weights)
-        
         
         self.critic_optimizer.apply_gradients(zip(dloss, self.critic_network.trainable_weights))
         
 
-    @tf.function
+    
     def actor_train(self, minibatch):
         s_batch, _, _, _, _ = minibatch
 
         with tf.GradientTape() as tape:
-            next_action = self.actor_network(s_batch)*2
+            next_action = self.actor_network(s_batch)
             actor_loss = -tf.reduce_mean(self.critic_network([s_batch, next_action]))
         actor_grad = tape.gradient(actor_loss, self.actor_network.trainable_weights)
         self.actor_optimizer.apply_gradients(zip(actor_grad, self.actor_network.trainable_weights))
@@ -92,7 +90,6 @@ class Agent(object):
         s_1 = tf.convert_to_tensor(s_1)
         t = np.array(t, dtype=np.float64).reshape(self.MINIBATCH_SIZE, 1)
         
-
         minibatch = (s, a, r, s_1, t)
     
         self.critic_train(minibatch)
@@ -105,24 +102,7 @@ class Agent(object):
         noisy = self.noise.get_action(action, t)
         return action, noisy
 
-    def discrete_act(self, state, t=0):
-        state = np.array(state).reshape(1, self.state_size)
-        action = self.actor_network(state)[0]
-        
-        noisy = action + np.random.normal()
-        
-
-        if(action >= 0):
-            action = 1
-        else:
-            action = 0
-        if(noisy > 0):
-            noisy = 1
-        else:
-            noisy = 0
-        return action, noisy
-        
-
+   
     def update_target_networks(self):
         self.actor_target_network.set_weights(np.array(self.actor_network.get_weights())*self.TAU + np.array(self.actor_target_network.get_weights())*(1-self.TAU))
         self.critic_target_network.set_weights(np.array(self.critic_network.get_weights())*self.TAU + np.array(self.critic_target_network.get_weights())*(1-self.TAU))
