@@ -30,7 +30,7 @@ class Critic(tf.keras.Model):
             np.zeros(shape=(1, self.state_size), dtype=np.float64))
         dummy_action = tf.constant(
             np.zeros(shape=[1, self.action_size], dtype=np.float64))
-        with tf.device("/gpu:0"):
+        with tf.device("/cpu:0"):
             self([dummy_state, dummy_action])
 
 
@@ -38,8 +38,10 @@ class Critic(tf.keras.Model):
         states, actions = inputs
         features = tf.concat([states, actions], axis=1)
         features = tf.nn.relu(self.l1(features))
+        #features = BatchNormalization()(features)
         features = tf.nn.relu(self.l2(features))
         features = self.l3(features)
+
         return tf.cast(features, dtype=tf.float64)
 
     

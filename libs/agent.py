@@ -30,7 +30,7 @@ class Agent(object):
         self.critic_optimizer = optimizers.Adam(learning_rate=self.critic_lr)
         self.actor_optimizer = optimizers.Adam(learning_rate=self.actor_lr)
 
-        self.replay_buffer = ReplayBuffer(100000)
+        self.replay_buffer = ReplayBuffer(1e6)
         self.MINIBATCH_SIZE = minibatch_size
         self.GAMMA = tf.cast(gamma, dtype=tf.float64)
         self.TAU = tau
