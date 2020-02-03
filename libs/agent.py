@@ -39,7 +39,7 @@ class Agent(object):
         
 
     
-    def step(self, s, a, r, s_1, t, train=True)  
+    def step(self, s, a, r, s_1, t, train=True):
         self.replay_buffer.add(s,a,r,s_1,t)
         if(train and self.replay_buffer.size() >= self.MINIBATCH_SIZE):
             minibatch = self.replay_buffer.sample_batch(self.MINIBATCH_SIZE)
