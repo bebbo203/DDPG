@@ -10,16 +10,11 @@ class Critic(tf.keras.Model):
         self.action_size = action_size
         self.lr = lr
 
-
-
         W2 = np.random.uniform(-3e-3, 3e-3, (400, 300))
         b2 = np.random.uniform(-3e-3, 3e-3, 300)
 
         W3 = np.random.uniform(-3e-3, 3e-3, (300, self.action_size))
         b3 = np.random.uniform(-3e-3, 3e-3, self.action_size)
-
-        
-
 
         self.l1 = Dense(400)
         self.l2 = Dense(300, weights = [W2, b2])
@@ -38,7 +33,6 @@ class Critic(tf.keras.Model):
         states, actions = inputs
         features = tf.concat([states, actions], axis=1)
         features = tf.nn.relu(self.l1(features))
-        #features = BatchNormalization()(features)
         features = tf.nn.relu(self.l2(features))
         features = self.l3(features)
 

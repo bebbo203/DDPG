@@ -39,8 +39,7 @@ class Agent(object):
         
 
     
-    def step(self, s, a, r, s_1, t, train=True):
-        
+    def step(self, s, a, r, s_1, t, train=True)  
         self.replay_buffer.add(s,a,r,s_1,t)
         if(train and self.replay_buffer.size() >= self.MINIBATCH_SIZE):
             minibatch = self.replay_buffer.sample_batch(self.MINIBATCH_SIZE)
@@ -53,17 +52,14 @@ class Agent(object):
         mu_prime = self.actor_target_network(s_1_batch)
         q_prime = self.critic_target_network([s_1_batch, mu_prime])
 
-
         ys = r_batch + self.GAMMA * (1 - t_batch) * q_prime
-
 
         with tf.GradientTape() as tape:    
             predicted_qs = self.critic_network([s_batch, a_batch])
             loss = (predicted_qs - ys)*(predicted_qs - ys) 
             loss = tf.reduce_mean(loss)
-        
         dloss = tape.gradient(loss, self.critic_network.trainable_weights)
-        
+
         self.critic_optimizer.apply_gradients(zip(dloss, self.critic_network.trainable_weights))
         
 
@@ -75,6 +71,7 @@ class Agent(object):
             next_action = self.actor_network(s_batch)
             actor_loss = -tf.reduce_mean(self.critic_network([s_batch, next_action]))
         actor_grad = tape.gradient(actor_loss, self.actor_network.trainable_weights)
+        
         self.actor_optimizer.apply_gradients(zip(actor_grad, self.actor_network.trainable_weights))
 
 
